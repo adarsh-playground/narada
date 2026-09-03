@@ -1,0 +1,6 @@
+.DS_Store
+.env
+keys
+bin/
+.tmp/
+coverage.out
