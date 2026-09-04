@@ -5,8 +5,7 @@ services:
     plan: free
     region: ohio
     buildCommand: ./scripts/build-render.sh
-    startCommand: ./bin/migrate && ./bin/api
-    initialDeployHook: ./scripts/seed-render.sh
+    startCommand: ./bin/migrate && ./scripts/seed-render.sh && ./bin/api
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -42,4 +41,3 @@ databases:
     databaseName: narada
     user: narada
     postgresMajorVersion: "17"
-

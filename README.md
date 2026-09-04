@@ -93,16 +93,16 @@ runs elsewhere.
 
 The repository includes a `render.yaml` Blueprint for a free friends-and-family
 pilot. It creates two free web services and a free PostgreSQL 17 database in
-Render's Ohio region. The API runs migrations whenever it starts. After its
-first successful deployment, it imports the corpus, builds the search chunks,
-and generates any missing embeddings automatically.
+Render's Ohio region. Whenever the API starts, it runs migrations, safely
+imports or updates the corpus, rebuilds the search chunks, and generates only
+missing embeddings before accepting requests.
 
 1. Push this repository to GitHub.
 2. In Render, choose **New > Blueprint** and connect the repository.
 3. Keep the default Blueprint path, `render.yaml`.
 4. Enter `OPENAI_API_KEY` when Render prompts for the secret value.
 5. Review the three free resources and deploy the Blueprint.
-6. Follow the API's initial-deploy logs until `Narada production data is ready`
+6. Follow the API's deploy logs until `Narada production data is ready`
    appears, then open `https://narada-web-adarsh.onrender.com`.
 
 If either service name is unavailable, change both the service name and its
