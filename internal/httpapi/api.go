@@ -112,6 +112,24 @@ func (a *API) ask(c echo.Context) error {
 			return respondError(c, err)
 		}
 	}
+	if cache, ok := a.history.(askhistory.CacheReader); ok {
+		cached, found, err := cache.FindCompleted(ctx, request.Question, request.Scripture)
+		if err != nil {
+			a.recordFailure(ctx, historyID, err, semanticsearch.Usage{}, time.Since(startedAt))
+			return respondError(c, err)
+		}
+		if found {
+			cached.Answer.InputTokens = 0
+			cached.Answer.OutputTokens = 0
+			if err := a.history.Complete(context.WithoutCancel(ctx), historyID, cached.Answer,
+				semanticsearch.Usage{}, cached.Evidence, time.Since(startedAt)); err != nil {
+				return respondError(c, err)
+			}
+			return c.JSON(http.StatusOK, map[string]any{
+				"question": request.Question, "answer": cached.Answer, "results": cached.Evidence,
+			})
+		}
+	}
 	usage := semanticsearch.Usage{}
 	var results []semanticsearch.Result
 	var err error

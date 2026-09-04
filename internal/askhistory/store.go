@@ -9,6 +9,7 @@ import (
 
 	"github.com/adarsh/narada/internal/groundedanswer"
 	"github.com/adarsh/narada/internal/semanticsearch"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,6 +21,17 @@ type Recorder interface {
 	Start(ctx context.Context, question, scripture string) (string, error)
 	Complete(ctx context.Context, id string, answer groundedanswer.Answer, usage semanticsearch.Usage, evidence []semanticsearch.Result, duration time.Duration) error
 	Fail(ctx context.Context, id string, err error, usage semanticsearch.Usage, duration time.Duration) error
+}
+
+type CachedAnswer struct {
+	Answer   groundedanswer.Answer
+	Evidence []semanticsearch.Result
+}
+
+// CacheReader is optional so callers can continue using recorders that only
+// persist request history.
+type CacheReader interface {
+	FindCompleted(ctx context.Context, question, scripture string) (CachedAnswer, bool, error)
 }
 
 type Store struct {
@@ -57,6 +69,53 @@ func (s *Store) Start(ctx context.Context, question, scripture string) (string, 
 	return id, nil
 }
 
+func (s *Store) FindCompleted(ctx context.Context, question, scripture string) (CachedAnswer, bool, error) {
+	const normalizedQuestion = `lower(regexp_replace(btrim(question), '\s+', ' ', 'g'))`
+	var cached CachedAnswer
+	var interactionID string
+	err := s.pool.QueryRow(ctx, `SELECT ai.id, ai.answer_text, ai.answer_model
+		FROM ask_interaction ai
+		JOIN scripture scr ON scr.id=ai.scripture_id
+		WHERE ai.status='completed' AND ai.answer_text IS NOT NULL
+		  AND upper(scr.short_name)=upper($1::text)
+		  AND `+normalizedQuestion+`=lower(regexp_replace(btrim($2::text), '\s+', ' ', 'g'))
+		  AND ai.prompt_version=$3::text
+		  AND (ai.answer_model=$4::text OR ai.answer_model LIKE $4::text || '-%')
+		ORDER BY ai.completed_at DESC
+		LIMIT 1`, scripture, question, s.promptVersion, s.answerModel).Scan(
+		&interactionID, &cached.Answer.Text, &cached.Answer.Model)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return CachedAnswer{}, false, nil
+		}
+		return CachedAnswer{}, false, fmt.Errorf("find cached answer: %w", err)
+	}
+
+	rows, err := s.pool.Query(ctx, `SELECT COALESCE(search_chunk_id::text,''),kind,citation_label,COALESCE(source_name,''),
+		text_snapshot,verse_references,similarity
+		FROM ask_interaction_evidence WHERE ask_interaction_id=$1 ORDER BY rank`, interactionID)
+	if err != nil {
+		return CachedAnswer{}, false, fmt.Errorf("load cached answer evidence: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var result semanticsearch.Result
+		var refs []byte
+		if err := rows.Scan(&result.ChunkID, &result.Kind, &result.CitationLabel, &result.Source,
+			&result.Text, &refs, &result.Similarity); err != nil {
+			return CachedAnswer{}, false, fmt.Errorf("scan cached answer evidence: %w", err)
+		}
+		if err := json.Unmarshal(refs, &result.VerseRefs); err != nil {
+			return CachedAnswer{}, false, fmt.Errorf("decode cached answer evidence: %w", err)
+		}
+		cached.Evidence = append(cached.Evidence, result)
+	}
+	if err := rows.Err(); err != nil {
+		return CachedAnswer{}, false, fmt.Errorf("iterate cached answer evidence: %w", err)
+	}
+	return cached, true, nil
+}
+
 func answerPrices(model string) (int64, int64, error) {
 	switch {
 	case strings.HasPrefix(model, "gpt-5.6-luna"):
@@ -76,7 +135,9 @@ func (s *Store) Complete(ctx context.Context, id string, answer groundedanswer.A
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `UPDATE ask_interaction SET status='completed',answer_text=$2,embedding_model=$3,answer_model=$4,
+	_, err = tx.Exec(ctx, `UPDATE ask_interaction SET status='completed',answer_text=$2,
+		embedding_model=COALESCE(NULLIF($3::text,''),embedding_model),
+		answer_model=COALESCE(NULLIF($4::text,''),answer_model),
 		embedding_input_tokens=$5::integer,answer_input_tokens=$6::integer,answer_output_tokens=$7::integer,
 		embedding_cost_nanos=$5::integer*embedding_price_nanos_per_token,
 		answer_input_cost_nanos=$6::integer*answer_input_price_nanos_per_token,
@@ -93,7 +154,7 @@ func (s *Store) Complete(ctx context.Context, id string, answer groundedanswer.A
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO ask_interaction_evidence
 			(ask_interaction_id,rank,search_chunk_id,kind,citation_label,source_name,text_snapshot,verse_references,similarity)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, id, rank+1, result.ChunkID, result.Kind,
+			VALUES ($1,$2,NULLIF($3::text,'')::uuid,$4,$5,$6,$7,$8,$9)`, id, rank+1, result.ChunkID, result.Kind,
 			result.CitationLabel, result.Source, result.Text, refs, result.Similarity)
 		if err != nil {
 			return fmt.Errorf("store ask evidence: %w", err)

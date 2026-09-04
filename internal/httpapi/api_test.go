@@ -50,13 +50,15 @@ func (s fakeSearcher) SearchWithUsage(context.Context, string, string, string, i
 type fakeHistory struct {
 	completed bool
 	usage     semanticsearch.Usage
+	answer    groundedanswer.Answer
+	evidence  []semanticsearch.Result
 }
 
 func (h *fakeHistory) Start(context.Context, string, string) (string, error) {
 	return "history-one", nil
 }
-func (h *fakeHistory) Complete(_ context.Context, _ string, _ groundedanswer.Answer, usage semanticsearch.Usage, _ []semanticsearch.Result, _ time.Duration) error {
-	h.completed, h.usage = true, usage
+func (h *fakeHistory) Complete(_ context.Context, _ string, answer groundedanswer.Answer, usage semanticsearch.Usage, evidence []semanticsearch.Result, _ time.Duration) error {
+	h.completed, h.usage, h.answer, h.evidence = true, usage, answer, evidence
 	return nil
 }
 func (h *fakeHistory) Fail(context.Context, string, error, semanticsearch.Usage, time.Duration) error {
@@ -64,6 +66,15 @@ func (h *fakeHistory) Fail(context.Context, string, error, semanticsearch.Usage,
 }
 
 var _ askhistory.Recorder = (*fakeHistory)(nil)
+
+type cachedHistory struct {
+	fakeHistory
+	cached askhistory.CachedAnswer
+}
+
+func (h *cachedHistory) FindCompleted(context.Context, string, string) (askhistory.CachedAnswer, bool, error) {
+	return h.cached, true, nil
+}
 
 func (s fakeStore) ListChapters(context.Context, string) ([]scripture.Chapter, error) {
 	return s.chapters, s.err
@@ -208,6 +219,26 @@ func TestAskReturnsGroundedAnswerAndEvidence(t *testing.T) {
 	}
 	if !history.completed || history.usage.EmbeddingInputTokens != 9 {
 		t.Fatalf("history was not completed with usage: %+v", history)
+	}
+}
+
+func TestAskReusesCompletedExactQuestionAndLogsZeroUsage(t *testing.T) {
+	evidence := []semanticsearch.Result{{ChunkID: "one", Kind: semanticsearch.KindCommentary,
+		CitationLabel: "BG 2.47", Text: "Work without attachment."}}
+	history := &cachedHistory{cached: askhistory.CachedAnswer{
+		Answer:   groundedanswer.Answer{Text: "A cached answer [BG 2.47].", Model: "gpt-5.6-luna", InputTokens: 100, OutputTokens: 20},
+		Evidence: evidence,
+	}}
+	e := NewWithAnswererAndHistory(fakeStore{}, fakeSearcher{}, fakeAnswerer{answer: groundedanswer.Answer{Model: "gpt-5.6-luna"}}, history)
+	recorder := serveBody(e, http.MethodPost, "/api/v1/ask", `{"question":"How should I work?"}`)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"text":"A cached answer [BG 2.47]."`) {
+		t.Fatalf("unexpected response: status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !history.completed || history.usage.EmbeddingInputTokens != 0 || history.answer.InputTokens != 0 || history.answer.OutputTokens != 0 {
+		t.Fatalf("cache hit was not logged with zero usage: history=%+v", history)
+	}
+	if len(history.evidence) != 1 || history.evidence[0].CitationLabel != "BG 2.47" {
+		t.Fatalf("cached evidence was not copied: %+v", history.evidence)
 	}
 }
 
