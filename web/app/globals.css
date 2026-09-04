@@ -552,11 +552,19 @@ h1 {
 .ask-footer { min-height: 190px; }
 @media (max-width: 600px) {
   .topbar { width: calc(100% - 28px); height: 72px; }
-  .brand { font-size: 23px; }
+  .brand { flex: none; }
+  .brand > span:last-child { display: none; }
   .brand-mark { width: 34px; height: 34px; }
-  .topbar nav { display: flex; gap: 0; }
-  .topbar nav a { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .topbar nav a.current { display: none; }
+  .topbar nav { display: flex; align-items: center; gap: clamp(12px, 4vw, 22px); }
+  .topbar nav a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
   .hero { width: calc(100% - 28px); padding-top: 24px; }
   h1 { font-size: clamp(48px, 15vw, 70px); }
   .intro { margin: 24px auto 38px; }
