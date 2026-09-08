@@ -2,9 +2,11 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -51,12 +53,13 @@ func routes(api *API) *echo.Echo {
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
 		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodOptions},
-		AllowHeaders: []string{echo.HeaderContentType},
+		AllowHeaders: []string{echo.HeaderContentType, echo.HeaderAuthorization},
 	}))
 
 	e.GET("/health", api.health)
 	e.GET("/api/v1/verses/random", api.randomVerse)
 	e.GET("/api/v1/search", api.search)
+	e.GET("/api/v1/admin/ask-interactions", api.listAskInteractions)
 	askLimiter := middleware.NewRateLimiterMemoryStoreWithConfig(middleware.RateLimiterMemoryStoreConfig{
 		Rate:      rate.Limit(10.0 / 60.0),
 		Burst:     10,
@@ -77,6 +80,46 @@ func routes(api *API) *echo.Echo {
 	e.GET("/api/v1/scriptures/:scripture/chapters/:chapter/verses", api.listVerses)
 	e.GET("/api/v1/scriptures/:scripture/chapters/:chapter/verses/:verse", api.getVerse)
 	return e
+}
+
+func (a *API) listAskInteractions(c echo.Context) error {
+	adminToken := os.Getenv("ADMIN_TOKEN")
+	if adminToken == "" {
+		return c.JSON(http.StatusServiceUnavailable, errorResponse{Error: "admin access is not configured"})
+	}
+	provided := strings.TrimSpace(strings.TrimPrefix(c.Request().Header.Get(echo.HeaderAuthorization), "Bearer "))
+	if len(provided) != len(adminToken) || subtle.ConstantTimeCompare([]byte(provided), []byte(adminToken)) != 1 {
+		return c.JSON(http.StatusUnauthorized, errorResponse{Error: "invalid admin token"})
+	}
+	reader, ok := a.history.(askhistory.AdminReader)
+	if !ok {
+		return c.JSON(http.StatusServiceUnavailable, errorResponse{Error: "ask history is unavailable"})
+	}
+	limit := 50
+	if value := c.QueryParam("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			return c.JSON(http.StatusBadRequest, errorResponse{Error: "limit must be between 1 and 100"})
+		}
+		limit = parsed
+	}
+	offset := 0
+	if value := c.QueryParam("offset"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			return c.JSON(http.StatusBadRequest, errorResponse{Error: "offset must be zero or greater"})
+		}
+		offset = parsed
+	}
+	status := strings.TrimSpace(c.QueryParam("status"))
+	if status != "" && status != "pending" && status != "completed" && status != "failed" {
+		return c.JSON(http.StatusBadRequest, errorResponse{Error: "status must be pending, completed, or failed"})
+	}
+	page, err := reader.ListInteractions(c.Request().Context(), limit, offset, status)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(http.StatusOK, page)
 }
 
 type askRequest struct {

@@ -72,6 +72,15 @@ type cachedHistory struct {
 	cached askhistory.CachedAnswer
 }
 
+type adminHistory struct {
+	fakeHistory
+	page askhistory.InteractionPage
+}
+
+func (h *adminHistory) ListInteractions(context.Context, int, int, string) (askhistory.InteractionPage, error) {
+	return h.page, nil
+}
+
 func (h *cachedHistory) FindCompleted(context.Context, string, string) (askhistory.CachedAnswer, bool, error) {
 	return h.cached, true, nil
 }
@@ -239,6 +248,29 @@ func TestAskReusesCompletedExactQuestionAndLogsZeroUsage(t *testing.T) {
 	}
 	if len(history.evidence) != 1 || history.evidence[0].CitationLabel != "BG 2.47" {
 		t.Fatalf("cached evidence was not copied: %+v", history.evidence)
+	}
+}
+
+func TestAdminAskHistoryRequiresToken(t *testing.T) {
+	t.Setenv("ADMIN_TOKEN", "a-secret-token")
+	history := &adminHistory{page: askhistory.InteractionPage{
+		Interactions: []askhistory.Interaction{{ID: "one", Scripture: "BG", Question: "How should I work?", Status: "completed"}},
+		Summary:      askhistory.InteractionSummary{TotalInteractions: 1, Completed: 1},
+		Total:        1, Limit: 50,
+	}}
+	e := NewWithAnswererAndHistory(fakeStore{}, fakeSearcher{}, fakeAnswerer{}, history)
+
+	unauthorized := serve(e, http.MethodGet, "/api/v1/admin/ask-interactions")
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status=%d, want 401", unauthorized.Code)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/ask-interactions", nil)
+	request.Header.Set("Authorization", "Bearer a-secret-token")
+	recorder := httptest.NewRecorder()
+	e.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"question":"How should I work?"`) {
+		t.Fatalf("unexpected response: status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 

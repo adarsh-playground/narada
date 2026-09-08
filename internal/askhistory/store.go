@@ -34,6 +34,48 @@ type CacheReader interface {
 	FindCompleted(ctx context.Context, question, scripture string) (CachedAnswer, bool, error)
 }
 
+type Interaction struct {
+	ID                   string     `json:"id"`
+	Scripture            string     `json:"scripture"`
+	Question             string     `json:"question"`
+	AnswerText           *string    `json:"answer_text,omitempty"`
+	Status               string     `json:"status"`
+	ErrorMessage         *string    `json:"error_message,omitempty"`
+	EmbeddingModel       string     `json:"embedding_model"`
+	AnswerModel          string     `json:"answer_model"`
+	PromptVersion        string     `json:"prompt_version"`
+	EmbeddingInputTokens int        `json:"embedding_input_tokens"`
+	AnswerInputTokens    int        `json:"answer_input_tokens"`
+	AnswerOutputTokens   int        `json:"answer_output_tokens"`
+	TotalCostUSD         float64    `json:"total_cost_usd"`
+	DurationMS           *int       `json:"duration_ms,omitempty"`
+	Cached               bool       `json:"cached"`
+	CreatedAt            time.Time  `json:"created_at"`
+	CompletedAt          *time.Time `json:"completed_at,omitempty"`
+}
+
+type InteractionSummary struct {
+	TotalInteractions int     `json:"total_interactions"`
+	Completed         int     `json:"completed"`
+	Failed            int     `json:"failed"`
+	Pending           int     `json:"pending"`
+	Cached            int     `json:"cached"`
+	TotalTokens       int64   `json:"total_tokens"`
+	TotalCostUSD      float64 `json:"total_cost_usd"`
+}
+
+type InteractionPage struct {
+	Interactions []Interaction      `json:"interactions"`
+	Summary      InteractionSummary `json:"summary"`
+	Total        int                `json:"total"`
+	Limit        int                `json:"limit"`
+	Offset       int                `json:"offset"`
+}
+
+type AdminReader interface {
+	ListInteractions(ctx context.Context, limit, offset int, status string) (InteractionPage, error)
+}
+
 type Store struct {
 	pool                           *pgxpool.Pool
 	embeddingModel                 string
@@ -114,6 +156,62 @@ func (s *Store) FindCompleted(ctx context.Context, question, scripture string) (
 		return CachedAnswer{}, false, fmt.Errorf("iterate cached answer evidence: %w", err)
 	}
 	return cached, true, nil
+}
+
+func (s *Store) ListInteractions(ctx context.Context, limit, offset int, status string) (InteractionPage, error) {
+	page := InteractionPage{Interactions: []Interaction{}, Limit: limit, Offset: offset}
+	err := s.pool.QueryRow(ctx, `SELECT count(*)::integer,
+		count(*) FILTER (WHERE status='completed')::integer,
+		count(*) FILTER (WHERE status='failed')::integer,
+		count(*) FILTER (WHERE status='pending')::integer,
+		count(*) FILTER (WHERE status='completed' AND answer_text IS NOT NULL
+			AND embedding_input_tokens=0 AND answer_input_tokens=0 AND answer_output_tokens=0)::integer,
+		COALESCE(sum(embedding_input_tokens+answer_input_tokens+answer_output_tokens),0)::bigint,
+		COALESCE(sum(total_cost_usd),0)::float8
+		FROM ask_interaction`).Scan(&page.Summary.TotalInteractions, &page.Summary.Completed,
+		&page.Summary.Failed, &page.Summary.Pending, &page.Summary.Cached,
+		&page.Summary.TotalTokens, &page.Summary.TotalCostUSD)
+	if err != nil {
+		return InteractionPage{}, fmt.Errorf("summarize ask history: %w", err)
+	}
+
+	err = s.pool.QueryRow(ctx, `SELECT count(*)::integer FROM ask_interaction
+		WHERE ($1::text='' OR status=$1::text)`, status).Scan(&page.Total)
+	if err != nil {
+		return InteractionPage{}, fmt.Errorf("count ask history: %w", err)
+	}
+
+	rows, err := s.pool.Query(ctx, `SELECT ai.id,COALESCE(scr.short_name,''),ai.question,ai.answer_text,ai.status,ai.error_message,
+		ai.embedding_model,ai.answer_model,ai.prompt_version,ai.embedding_input_tokens,
+		ai.answer_input_tokens,ai.answer_output_tokens,ai.total_cost_usd::float8,ai.duration_ms,
+		(ai.status='completed' AND ai.answer_text IS NOT NULL AND ai.embedding_input_tokens=0
+			AND ai.answer_input_tokens=0 AND ai.answer_output_tokens=0) AS cached,
+		ai.created_at,ai.completed_at
+		FROM ask_interaction ai
+		LEFT JOIN scripture scr ON scr.id=ai.scripture_id
+		WHERE ($1::text='' OR ai.status=$1::text)
+		ORDER BY ai.created_at DESC
+		LIMIT $2::integer OFFSET $3::integer`, status, limit, offset)
+	if err != nil {
+		return InteractionPage{}, fmt.Errorf("list ask history: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var interaction Interaction
+		if err := rows.Scan(&interaction.ID, &interaction.Scripture, &interaction.Question,
+			&interaction.AnswerText, &interaction.Status, &interaction.ErrorMessage,
+			&interaction.EmbeddingModel, &interaction.AnswerModel, &interaction.PromptVersion,
+			&interaction.EmbeddingInputTokens, &interaction.AnswerInputTokens,
+			&interaction.AnswerOutputTokens, &interaction.TotalCostUSD, &interaction.DurationMS,
+			&interaction.Cached, &interaction.CreatedAt, &interaction.CompletedAt); err != nil {
+			return InteractionPage{}, fmt.Errorf("scan ask history: %w", err)
+		}
+		page.Interactions = append(page.Interactions, interaction)
+	}
+	if err := rows.Err(); err != nil {
+		return InteractionPage{}, fmt.Errorf("iterate ask history: %w", err)
+	}
+	return page, nil
 }
 
 func answerPrices(model string) (int64, int64, error) {

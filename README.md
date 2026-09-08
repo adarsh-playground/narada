@@ -111,3 +111,17 @@ matching `onrender.com` URL in `render.yaml` before creating the Blueprint.
 Free Render web services sleep after periods of inactivity, so the first visit
 can be slow while both services wake. Free Render PostgreSQL expires after 30
 days and has no backups. Export or upgrade the database before the pilot ends.
+
+## View ask history
+
+The private `/admin` page shows anonymous ask interactions, answers, status,
+token usage, response time, cache hits, models, and estimated cost. Set a long,
+random `ADMIN_TOKEN` on the API service, then enter that token when opening the
+admin page. The token is kept only in the browser session and is sent to the
+protected API endpoint with each admin request.
+
+For Render, add `ADMIN_TOKEN` to `narada-api-adarsh`, redeploy, and open:
+
+```text
+https://narada-web-adarsh.onrender.com/admin
+```
