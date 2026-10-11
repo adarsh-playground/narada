@@ -679,3 +679,89 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.sanskrit-with-audio { position: relative; padding-right: 48px; }
+.gita-audio-control { position: absolute; top: 0; right: 0; }
+.gita-audio-button {
+  display: grid; place-items: center; width: 44px; height: 44px;
+  border: 1px solid var(--line); border-radius: 50%;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.gita-audio-button:hover, .gita-audio-button.is-active { color: var(--saffron); background: rgba(199, 100, 54, 0.08); }
+.gita-audio-button:focus-visible { outline: 2px solid var(--saffron); outline-offset: 3px; }
+.audio-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.audio-spinner { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: audio-spin 0.8s linear infinite; }
+@keyframes audio-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .audio-spinner { animation: none; } }
+.audio-error { position: absolute; right: 0; top: 48px; width: 130px; padding: 6px; border-radius: 4px; background: var(--paper, #fff); color: var(--saffron); font-size: 11px; text-align: right; z-index: 1; }
+
+.footer-links { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; }
+.site-footer .footer-links { justify-self: end; justify-content: flex-end; color: #aab5ac; font-size: 12px; }
+.site-footer a { color: #f6efdf; text-underline-offset: 4px; }
+.footer-links a:focus-visible, .credits-card a:focus-visible { outline: 2px solid var(--saffron); outline-offset: 4px; }
+.about-page { width: min(760px, calc(100% - 40px)); margin: 56px auto 80px; }
+.about-page h1 { font-size: clamp(40px, 6vw, 64px); line-height: 1.12; }
+.about-intro { margin: 24px 0 40px; color: var(--muted); line-height: 1.8; }
+.credits-card { padding: clamp(24px, 5vw, 40px); border: 1px solid var(--line); border-radius: 4px; background: rgba(255, 255, 255, 0.22); }
+.credits-card h2 { margin: 0 0 28px; font-family: var(--font-display), serif; font-size: clamp(25px, 4vw, 32px); font-weight: 500; }
+.credits-card h3 { margin: 0 0 16px; font-size: 17px; }
+.credits-card p { margin: 16px 0; line-height: 1.8; overflow-wrap: anywhere; }
+.credits-card a { color: var(--ink); text-underline-offset: 4px; }
+.credits-card .credits-notice { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+.about-footer { margin-top: 0; }
+@media (max-width: 680px) {
+  .home-footer .footer-links { margin-left: auto; justify-content: flex-end; }
+  .home-footer .footer-links a { margin-left: 0; }
+  .about-footer { margin-top: 0; }
+}
+
+.listen-selectors { display: grid; grid-template-columns: 1.4fr 0.7fr 1fr; gap: 16px; }
+.listen-selectors label { display: flex; flex-direction: column; gap: 8px; color: var(--muted); font-size: 12px; }
+.listen-selectors select { width: 100%; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 3px; background: #f7f0e2; color: var(--ink); font: inherit; }
+.listen-status { min-height: 44px; margin: 24px 0 8px; color: var(--muted); font-size: 13px; }
+.listen-actions { display: flex; gap: 12px; }
+.listen-actions button, .listen-retry { min-height: 44px; padding: 10px 24px; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; }
+.listen-actions .listen-play { display: flex; align-items: center; justify-content: center; gap: 12px; min-width: 130px; background: var(--ink); color: #f7f0e2; }
+.listen-hint { margin-top: 32px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.listen-selectors select:focus-visible, .listen-actions button:focus-visible { outline: 2px solid var(--saffron); outline-offset: 3px; }
+@media (max-width: 680px) {
+  .topbar { height: auto; min-height: 88px; gap: 12px; padding-block: 12px; }
+  .topbar nav { flex-wrap: wrap; justify-content: flex-end; gap: 0 14px; }
+  .topbar nav a { min-height: 32px; font-size: 9px; }
+  .listen-selectors { grid-template-columns: 1fr 1fr; }
+  .listen-selectors label:last-child { grid-column: 1 / -1; }
+}
+
+.topbar .primary-navigation { align-items: center; flex-wrap: nowrap; gap: 16px; }
+.gita-menu { position: relative; }
+.gita-menu summary {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px;
+  list-style: none; cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 700;
+}
+.gita-menu summary::-webkit-details-marker { display: none; }
+.gita-menu summary.current { color: var(--ink); }
+.gita-menu summary:hover { color: var(--saffron); }
+.gita-menu-chevron { transition: transform 150ms ease; }
+.gita-menu[open] .gita-menu-chevron { transform: rotate(180deg); }
+.gita-menu-links {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 20;
+  width: 210px; padding: 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: #f7f0e2; box-shadow: 0 12px 32px rgba(20, 40, 30, 0.18);
+}
+.topbar .gita-menu-links a { display: flex; align-items: center; min-height: 44px; padding: 10px 12px; color: var(--muted); border-radius: 3px; text-transform: none; font-size: 12px; letter-spacing: normal; }
+.topbar .gita-menu-links a:hover, .topbar .gita-menu-links a.current { background: rgba(199, 100, 54, 0.10); color: var(--ink); }
+.topbar .primary-navigation .nav-ask {
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+  min-height: 44px; padding: 0 22px; border-radius: 3px; background: var(--saffron);
+  color: #fff; font-size: 13px; font-weight: 800; text-transform: none; letter-spacing: normal;
+}
+.topbar .primary-navigation .nav-ask:hover { background: #ac5029; }
+.topbar .primary-navigation .nav-ask.current { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.65); }
+.read-topbar .gita-menu summary { color: #aab5ac; }
+.read-topbar .gita-menu summary.current { color: #f6efdf; }
+.gita-menu summary:focus-visible, .primary-navigation a:focus-visible { outline: 2px solid var(--saffron); outline-offset: 3px; }
+@media (max-width: 680px) {
+  .topbar .primary-navigation { gap: 8px; }
+  .gita-menu summary { padding-inline: 10px; }
+  .topbar .primary-navigation .nav-ask { padding-inline: 18px; }
+}

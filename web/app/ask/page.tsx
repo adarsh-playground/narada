@@ -1,6 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-html-link-for-pages */
 
+import { PrimaryNavigation } from '../components/primary-navigation';
 import { FormEvent, useState } from 'react';
 
 type SearchResult = {
@@ -80,11 +81,7 @@ export default function AskPage() {
           <span className="brand-mark" aria-hidden="true">न</span>
           <span>Narada</span>
         </a>
-        <nav aria-label="Primary navigation">
-          <a href="/">Today’s verse</a>
-          <a href="/read">Read the Gita</a>
-          <a className="current" href="/ask">Ask</a>
-        </nav>
+        <PrimaryNavigation current="/ask" />
       </header>
 
       <section className="ask-page">
@@ -208,6 +205,7 @@ export default function AskPage() {
 
       <footer className="site-footer ask-footer">
         <span className="brand-mark" aria-hidden="true">न</span>
+        <nav className="footer-links" aria-label="Footer navigation"><a href="/about#credits">About &amp; Credits</a></nav>
       </footer>
     </main>
   );

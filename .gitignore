@@ -4,3 +4,7 @@ keys
 bin/
 .tmp/
 coverage.out
+
+# Audio recordings (all directories, case-insensitive extensions)
+*.[mM][pP]3
+*.[wW][aA][vV]

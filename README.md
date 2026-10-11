@@ -89,6 +89,19 @@ and desktop layouts. During local development, its `/api` requests are proxied
 to `http://localhost:8080`. Set `API_URL` before `make dev` only when the Go API
 runs elsewhere.
 
+The speaker button beside a Sanskrit verse plays its recitation directly from
+CloudFront. Configure `NEXT_PUBLIC_GITA_AUDIO_BASE_URL` in `web/.env.local`
+(see `web/.env.example`) before starting or building the frontend to override
+the default audio directory. Paths are generated as `{chapter:02}/{verse:03}.mp3`;
+no audio URLs are stored in the database. Only requested recordings load.
+
+Use **Listen to the Gita** in the top navigation to choose a starting chapter
+and verse. Playback advances automatically, with an option to continue through
+the Gita or stop at the end of the current chapter. Changing the location stops
+playback; press Play to begin from the new selection.
+
+Run frontend audio tests with `cd web && npm test` (Node 22.13 or newer).
+
 ## Deploy a 30-day Render pilot
 
 The repository includes a `render.yaml` Blueprint for a free friends-and-family

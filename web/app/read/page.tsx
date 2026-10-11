@@ -1,7 +1,9 @@
 'use client';
 /* eslint-disable @next/next/no-html-link-for-pages */
 
+import { PrimaryNavigation } from '../components/primary-navigation';
 import { useEffect, useState } from 'react';
+import { GitaAudioButton } from '../components/gita-audio-button';
 import { WordMeanings } from '../components/word-meanings';
 
 type Chapter = {
@@ -86,11 +88,7 @@ export default function ReadPage() {
           <span className="brand-mark" aria-hidden="true">न</span>
           <span>Narada</span>
         </a>
-        <nav aria-label="Primary navigation">
-          <a href="/">Today’s verse</a>
-          <a className="current" href="/read">Read the Gita</a>
-          <a href="/ask">Ask</a>
-        </nav>
+        <PrimaryNavigation current="/read" />
       </header>
 
       <section className="reader reader-page">
@@ -143,7 +141,10 @@ export default function ReadPage() {
             <div className="reader-loading">Opening chapter…</div>
           ) : verse ? (
             <div className="reader-text">
-              <p className="sanskrit">{compactSanskrit(verse.original_text)}</p>
+              <div className="sanskrit-with-audio">
+                <p className="sanskrit">{compactSanskrit(verse.original_text)}</p>
+                <GitaAudioButton key={verse.reference} reference={verse.reference} />
+              </div>
               <p className="transliteration">{verse.transliteration}</p>
               {verse.translations?.map((translation) => (
                 <section className="reading-passage translation-passage" key={`${translation.source}-${translation.text}`}>
@@ -184,7 +185,10 @@ export default function ReadPage() {
 
       <footer className="site-footer">
         <span className="brand-mark" aria-hidden="true">न</span>
-        <span>701 verses · 18 chapters</span>
+        <div className="footer-links">
+          <span>701 verses · 18 chapters</span>
+          <nav aria-label="Footer navigation"><a href="/about#credits">About &amp; Credits</a></nav>
+        </div>
       </footer>
     </main>
   );

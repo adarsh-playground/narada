@@ -1,7 +1,10 @@
 'use client';
 /* eslint-disable @next/next/no-html-link-for-pages */
 
+import { PrimaryNavigation } from './components/primary-navigation';
 import { useState } from 'react';
+import { gitaAudioPlayer } from '../lib/gita-audio';
+import { GitaAudioButton } from './components/gita-audio-button';
 import { WordMeanings } from './components/word-meanings';
 
 type Verse = {
@@ -41,6 +44,7 @@ export default function Home() {
   const [error, setError] = useState('');
 
   async function findAnotherVerse() {
+    gitaAudioPlayer.stop();
     setLoading(true);
     setError('');
     try {
@@ -61,11 +65,7 @@ export default function Home() {
           <span className="brand-mark" aria-hidden="true">न</span>
           <span>Narada</span>
         </a>
-        <nav aria-label="Primary navigation">
-          <a className="current" href="/">Today’s verse</a>
-          <a href="/read">Read the Gita</a>
-          <a href="/ask">Ask</a>
-        </nav>
+        <PrimaryNavigation current="/" />
       </header>
 
       <section className="hero" id="top">
@@ -74,7 +74,10 @@ export default function Home() {
             <span>श्रीमद्भगवद्गीता</span>
             <strong>{verse.reference}</strong>
           </div>
-          <p className="sanskrit">{compactSanskrit(verse.original_text)}</p>
+          <div className="sanskrit-with-audio">
+            <p className="sanskrit">{compactSanskrit(verse.original_text)}</p>
+            <GitaAudioButton key={verse.reference} reference={verse.reference} />
+          </div>
           <div className="rule" aria-hidden="true"><span>✦</span></div>
           <p className="transliteration">{verse.transliteration}</p>
           {verse.translations?.map((translation) => (
@@ -100,7 +103,10 @@ export default function Home() {
 
       <footer className="home-footer">
         <p>Ready to go deeper?</p>
-        <a href="/read">Read all 18 chapters <span aria-hidden="true">→</span></a>
+        <nav className="footer-links" aria-label="Footer navigation">
+          <a href="/read">Read all 18 chapters <span aria-hidden="true">→</span></a>
+          <a href="/about#credits">About &amp; Credits</a>
+        </nav>
       </footer>
     </main>
   );
